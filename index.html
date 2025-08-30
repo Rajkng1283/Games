@@ -1,39 +1,555 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Catching the Ball</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cosmic Catcher</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
-          },
-        },
-      }
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Tone.js for audio generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react": "https://aistudiocdn.com/react@^19.1.1"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            font-family: 'Orbitron', sans-serif;
+            background-color: #000;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        #gameCanvas {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background-color: rgba(0, 20, 40, 0.85);
+            padding: 30px;
+            border-radius: 20px;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            color: #ffffff;
+            width: 80%;
+            max-width: 400px;
+            z-index: 10;
+        }
+
+        .screen h1 {
+            margin: 0;
+            font-size: clamp(28px, 8vw, 48px);
+            text-shadow: 0 0 10px #ff00ff, 0 0 15px #ff00ff;
+        }
+        
+        #gameOverScreen { display: none; }
+        
+        .button-container {
+            display: flex;
+            gap: 15px;
+        }
+
+        .game-button {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(16px, 4vw, 22px);
+            padding: 12px 25px;
+            border-radius: 10px;
+            cursor: pointer;
+            text-shadow: 0 0 5px #ffffff;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            border: 2px solid #00ffff;
+            background: linear-gradient(45deg, #005f5f, #00caca);
+            color: white;
+        }
+
+        .game-button:hover {
+            box-shadow: 0 0 25px rgba(0, 255, 255, 1);
+            transform: scale(1.05);
+        }
+        
+        .exit-button {
+            background: linear-gradient(45deg, #8b0000, #ff4500);
+            border-color: #ff8c00;
+            box-shadow: 0 0 15px rgba(255, 140, 0, 0.5);
+        }
+        
+        .exit-button:hover {
+            box-shadow: 0 0 25px rgba(255, 140, 0, 1);
+        }
+        
+        #gameUI {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            font-size: clamp(14px, 3vw, 20px);
+            color: #ffffff;
+            text-shadow: 0 0 8px #00ffff, 0 0 12px #00ffff;
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        #stats-left {
+            display: flex;
+            gap: 20px;
+        }
+
+        #levelUpMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(30px, 10vw, 60px);
+            color: #ff0;
+            text-shadow: 0 0 15px #ff0, 0 0 20px #ff0;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+            z-index: 20;
+        }
+        
+        #sound-toggle {
+            pointer-events: all;
+            cursor: pointer;
+            background: none;
+            border: none;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+        }
+    </style>
 </head>
-  <body class="bg-[#0D1117] text-gray-300 font-sans">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="startScreen" class="screen">
+            <h1>Cosmic Catcher</h1>
+            <button id="startButton" class="game-button">Start Game</button>
+        </div>
+        
+        <div id="gameUI">
+             <div id="stats-left">
+                <div id="score">Score: 0</div>
+                <div id="levelInfo">Level: 1 | Target: 0/5</div>
+                <div id="lives">Lives: 3</div>
+            </div>
+            <button id="sound-toggle">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            </button>
+        </div>
+
+        <div id="levelUpMessage">LEVEL UP!</div>
+
+        <div id="gameOverScreen" class="screen">
+            <h1>Game Over</h1>
+            <p id="finalScore">Your Score: 0</p>
+            <div class="button-container">
+                 <button id="restartButton" class="game-button">Restart</button>
+                 <button id="exitButton" class="game-button exit-button">Exit</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const livesElement = document.getElementById('lives');
+        const levelInfoElement = document.getElementById('levelInfo');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreElement = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
+        const exitButton = document.getElementById('exitButton');
+        const gameUI = document.getElementById('gameUI');
+        const levelUpMessage = document.getElementById('levelUpMessage');
+        const soundToggleButton = document.getElementById('sound-toggle');
+
+        const backgroundImage = new Image();
+        backgroundImage.src = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAHgA+gDASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAUGAwQHAQL/xABIEAABAwIFAgQDBgUDAgQGAwEBAAIDBBEFEiEGMUETIlFhcYEykaEHFEKxwdHwI1JicuHxFTOCkhdDU2OyNERUY4KSorPC/8QAGAEBAQEBAQAAAAAAAAAAAAAAAAECAwT/xAAgEQEBAQEAAwEBAQEBAQAAAAAAAQIRITESAyNBURMi/9oADAMBAAIRAxEAPwD6lQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQhCAQ-';
+        
+        // --- Sound Synthesizers ---
+        let soundMuted = false;
+        let synths = {};
+
+        const soundOnIcon = `<svg xmlns="http://www.w.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`;
+        const soundOffIcon = `<svg xmlns="http://www.w.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>`;
+
+
+        function setupSounds() {
+            synths.catch = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } }).toDestination();
+            synths.miss = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination();
+            synths.click = new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.05, sustain: 0, release: 0.1 } }).toDestination();
+            synths.gameOver = new Tone.MembraneSynth().toDestination();
+            synths.levelUp = new Tone.PolySynth(Tone.Synth).toDestination();
+        }
+
+        function playSound(type) {
+            if (soundMuted || !Tone.context.state || Tone.context.state !== 'running') return;
+
+            const now = Tone.now();
+            switch (type) {
+                case 'catch':
+                    synths.catch.triggerAttackRelease("C5", "8n", now);
+                    break;
+                case 'miss':
+                    synths.miss.triggerAttackRelease("C3", "8n", now);
+                    break;
+                case 'click':
+                    synths.click.triggerAttackRelease("C4", "16n", now);
+                    break;
+                case 'levelUp':
+                    synths.levelUp.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now);
+                    break;
+                case 'gameOver':
+                    synths.gameOver.triggerAttackRelease("C2", "2n", now);
+                    break;
+            }
+        }
+        
+        function toggleSound() {
+            playSound('click');
+            soundMuted = !soundMuted;
+            soundToggleButton.innerHTML = soundMuted ? soundOffIcon : soundOnIcon;
+        }
+
+        // --- Game State Variables ---
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let cometsCaughtThisLevel = 0;
+        let catchCounterForGrowth = 0;
+        let cometsNeededForNextLevel = 5;
+        let animationFrameId;
+        let isGameRunning = false;
+        let spawnTimeoutId;
+        let comets = [];
+
+        // --- Keyboard Control State ---
+        let rightPressed = false;
+        let leftPressed = false;
+        
+        // --- Game Constants ---
+        const PADDLE_INITIAL_WIDTH_RATIO = 7; 
+        const PADDLE_GROWTH_MULTIPLIER = 1.25; // 25% growth
+        const PADDLE_MAX_GROWTH_FACTOR = 1.8; 
+
+        // --- Game Object Properties ---
+        let paddle = {
+            width: 100,
+            height: 60,
+            x: 0,
+            y: 0,
+            speed: 8,
+            initialWidth: 100
+        };
+        
+        // --- Game Initialization and Sizing ---
+        function setGameSize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const initialWidth = Math.min(120, canvas.width / PADDLE_INITIAL_WIDTH_RATIO);
+            paddle.initialWidth = initialWidth;
+            paddle.width = initialWidth;
+            paddle.height = paddle.width * 0.6;
+            
+            paddle.x = (canvas.width - paddle.width) / 2;
+            paddle.y = canvas.height - paddle.height - 20;
+        }
+
+        // --- Comet Spawning ---
+        function createComet(speedBoost = 0) {
+            const radius = 12 + Math.random() * 4;
+            const comet = {
+                radius: radius,
+                x: Math.random() * (canvas.width - radius * 2) + radius,
+                y: -radius,
+                dy: 2.5 + (level * 0.5) + (Math.random() * 1.5) + speedBoost,
+                tail: []
+            };
+            comets.push(comet);
+        }
+
+        function scheduleNextComet() {
+            if (!isGameRunning) return;
+            const speedBoost = lives === 1 ? 1.5 : 0; // Add speed boost if 1 life left
+            createComet(speedBoost);
+            const delay = Math.max(250, 1000 + (Math.random() * 1500) - (level * 120));
+            spawnTimeoutId = setTimeout(scheduleNextComet, delay);
+        }
+
+        function triggerFrenzyMode() {
+            // Spawn 3 comets in quick succession
+            createComet(1.5);
+            setTimeout(() => { if(isGameRunning) createComet(1.5); }, 250);
+            setTimeout(() => { if(isGameRunning) createComet(1.5); }, 500);
+        }
+
+        // --- Drawing Functions ---
+        function drawBackground() {
+            if (backgroundImage.complete && backgroundImage.naturalHeight !== 0) {
+                ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#000010';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function drawPaddle() {
+            const bucketX = paddle.x;
+            const bucketY = paddle.y;
+            const bucketW = paddle.width;
+            const bucketH = paddle.height;
+            
+            ctx.save();
+            ctx.shadowColor = 'rgba(0, 220, 255, 0.9)';
+            ctx.shadowBlur = 15;
+            ctx.strokeStyle = '#00eaff';
+            ctx.lineWidth = 5;
+            
+            // Draw the U-shape of the bucket
+            ctx.beginPath();
+            ctx.moveTo(bucketX, bucketY);
+            ctx.lineTo(bucketX, bucketY + bucketH);
+            ctx.lineTo(bucketX + bucketW, bucketY + bucketH);
+            ctx.lineTo(bucketX + bucketW, bucketY);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawComet(comet) {
+            // Draw tail
+            for (let i = 0; i < comet.tail.length; i++) {
+                const segment = comet.tail[i];
+                const ratio = i / comet.tail.length;
+                ctx.beginPath();
+                ctx.arc(segment.x, segment.y, comet.radius * ratio * 0.7, 0, Math.PI * 2);
+                const tailGradient = ctx.createRadialGradient(segment.x, segment.y, 0, segment.x, segment.y, comet.radius * ratio);
+                tailGradient.addColorStop(0, `rgba(173, 216, 230, ${ratio * 0.6})`);
+                tailGradient.addColorStop(1, `rgba(0, 191, 255, 0)`);
+                ctx.fillStyle = tailGradient;
+                ctx.fill();
+            }
+
+            // Draw comet head
+            ctx.beginPath();
+            const headGradient = ctx.createRadialGradient(comet.x, comet.y, 0, comet.x, comet.y, comet.radius);
+            headGradient.addColorStop(0, 'rgba(255, 255, 224, 1)');
+            headGradient.addColorStop(0.5, 'rgba(255, 165, 0, 1)');
+            headGradient.addColorStop(1, 'rgba(255, 69, 0, 0)');
+            ctx.fillStyle = headGradient;
+            ctx.shadowColor = 'rgba(255, 223, 186, 0.7)';
+            ctx.shadowBlur = 20;
+            ctx.arc(comet.x, comet.y, comet.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+        
+        // --- Game Loop ---
+        function update() {
+            if (!isGameRunning) return;
+
+            drawBackground();
+            drawPaddle();
+            
+            for (let i = comets.length - 1; i >= 0; i--) {
+                const comet = comets[i];
+                drawComet(comet);
+
+                comet.y += comet.dy;
+
+                comet.tail.push({ x: comet.x, y: comet.y });
+                if (comet.tail.length > 20) comet.tail.shift();
+
+                // Collision
+                if (comet.y + comet.radius > paddle.y && comet.y - comet.radius < paddle.y + paddle.height && comet.x > paddle.x && comet.x < paddle.x + paddle.width) {
+                    playSound('catch');
+                    score++;
+                    cometsCaughtThisLevel++;
+                    catchCounterForGrowth++;
+                    
+                    if (catchCounterForGrowth > 0 && catchCounterForGrowth % 3 === 0) {
+                        const newWidth = paddle.width * PADDLE_GROWTH_MULTIPLIER;
+                        paddle.width = Math.min(newWidth, paddle.initialWidth * PADDLE_MAX_GROWTH_FACTOR);
+                    }
+
+                    if (cometsCaughtThisLevel >= cometsNeededForNextLevel) {
+                        levelUp();
+                    }
+                    
+                    comets.splice(i, 1);
+                }
+                // Missed
+                else if (comet.y - comet.radius > canvas.height) {
+                    playSound('miss');
+                    lives--;
+                    if (lives === 1) triggerFrenzyMode();
+                    if (lives <= 0) {
+                        endGame();
+                        return;
+                    }
+                    comets.splice(i, 1);
+                }
+            }
+
+            scoreElement.textContent = `Score: ${score}`;
+            livesElement.textContent = `Lives: ${lives}`;
+            updateLevelInfo();
+            
+            if (rightPressed && paddle.x < canvas.width - paddle.width) {
+                paddle.x += paddle.speed;
+            } else if (leftPressed && paddle.x > 0) {
+                paddle.x -= paddle.speed;
+            }
+            
+            animationFrameId = requestAnimationFrame(update);
+        }
+        
+        // --- Game State Functions ---
+        function levelUp() {
+            playSound('levelUp');
+            level++;
+            cometsCaughtThisLevel = 0;
+            catchCounterForGrowth = 0;
+            cometsNeededForNextLevel += 2;
+            
+            setGameSize();
+            updateLevelInfo();
+
+            levelUpMessage.style.opacity = 1;
+            setTimeout(() => { levelUpMessage.style.opacity = 0; }, 1500);
+        }
+
+        function updateLevelInfo() {
+            levelInfoElement.textContent = `Level: ${level} | Target: ${cometsCaughtThisLevel}/${cometsNeededForNextLevel}`;
+        }
+
+        function exitToMenu() {
+            playSound('click');
+            isGameRunning = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (spawnTimeoutId) clearTimeout(spawnTimeoutId);
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+            canvas.style.display = 'none';
+            gameUI.style.display = 'none';
+        }
+
+        function endGame() {
+            isGameRunning = false;
+            clearTimeout(spawnTimeoutId);
+            cancelAnimationFrame(animationFrameId);
+            playSound('gameOver');
+            finalScoreElement.textContent = `Your Score: ${score}`;
+            gameOverScreen.style.display = 'flex';
+            gameUI.style.display = 'none';
+            canvas.style.display = 'none';
+        }
+
+        async function startGame() {
+            // Audio context must be started by a user action
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+            }
+            playSound('click');
+            
+            isGameRunning = true;
+            score = 0;
+            lives = 3;
+            level = 1;
+            cometsCaughtThisLevel = 0;
+            catchCounterForGrowth = 0;
+            cometsNeededForNextLevel = 5;
+            comets = [];
+
+            updateLevelInfo();
+            scoreElement.textContent = `Score: ${score}`;
+            livesElement.textContent = `Lives: ${lives}`;
+            
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            canvas.style.display = 'block';
+            gameUI.style.display = 'flex';
+            
+            setGameSize();
+
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (spawnTimeoutId) clearTimeout(spawnTimeoutId);
+            
+            scheduleNextComet();
+            update();
+        }
+
+        // --- Event Handlers ---
+        function keyDownHandler(e) {
+            if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
+            else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
+        }
+
+        function keyUpHandler(e) {
+            if (e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
+            else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
+        }
+
+        function movePaddle(clientX) {
+            const rect = canvas.getBoundingClientRect();
+            paddle.x = clientX - rect.left - paddle.width / 2;
+            paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
+        }
+
+        function mouseMoveHandler(e) { movePaddle(e.clientX); }
+        function touchMoveHandler(e) {
+            e.preventDefault();
+            if (e.touches.length > 0) movePaddle(e.touches[0].clientX);
+        }
+
+        // --- Attach Event Listeners ---
+        window.addEventListener('resize', setGameSize);
+        document.addEventListener('keydown', keyDownHandler);
+        document.addEventListener('keyup', keyUpHandler);
+        canvas.addEventListener('mousemove', mouseMoveHandler);
+        canvas.addEventListener('touchmove', touchMoveHandler, { passive: false });
+        
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', () => {
+             playSound('click');
+             startGame();
+        });
+        exitButton.addEventListener('click', exitToMenu);
+        soundToggleButton.addEventListener('click', toggleSound);
+
+        setupSounds();
+        
+    </script>
+</body>
 </html>
+
+
